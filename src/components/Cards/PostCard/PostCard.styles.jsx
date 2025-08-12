@@ -37,8 +37,15 @@ export const Username = styled.span`
 
 export const PostImage = styled.div`
   width: 100%;
-
-  background: #d9d9d9;
+  padding-bottom: 56.25%; /* 16:9 aspect ratio */
+  background-image: url(${(props) =>
+    props.imageUrl ||
+    "https://imagenes.20minutos.es/uploads/imagenes/2024/05/15/una-imagen-creada-por-la-herramienta-imagen-3-de-google.jpeg"});
+  background-size: cover;
+  background-position: center;
+  background-color: #d9d9d9;
+  border-radius: 8px;
+  position: relative;
 `;
 
 export const PostActions = styled.div`
