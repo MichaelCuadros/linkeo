@@ -278,7 +278,6 @@ export default function ProfileCard() {
           </FlexBetween>
 
           <DisplayName>Mike Santana</DisplayName>
-          <Handle>@mike_santana1524</Handle>
           <Bio>
             Full-stack developer building with Next.js & Spring Boot. Coffee-driven,
             open-source advocate, lifelong learner.

@@ -1,4 +1,5 @@
-import Profile from "./pages/Profile";
+import { Menu } from "./pages/Menu";
+
 import { createGlobalStyle } from "styled-components";
 
 const GlobalStyles = createGlobalStyle`
@@ -15,7 +16,7 @@ function App() {
   return (
     <>
       <GlobalStyles />  
-      <Profile />       
+      <Menu />       
     </>
   );
 }
