@@ -208,6 +208,8 @@ export const API = {
     }
   },
 
+
+
   // Profiles (público)
   getProfileByUsername(username) {
     return fetchJSON(
@@ -246,4 +248,6 @@ export const API = {
       body: JSON.stringify(payload),
     });
   },
+
+  
 };

@@ -4,13 +4,14 @@ import { createGlobalStyle } from "styled-components";
 import Config from "./pages/Config";
 import LinkSingle from "./pages/perro";
 import LinkMenu from "./pages/Menu2";
-import Login from "./pages/login"; // si usas Step2 como login, puedes reemplazarlo
+import Login from "./pages/login";
 import Tarjeta from "./pages/tarjeta";
 import LandingPage from "./pages/land";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import { AuthProvider } from "./context/AuthContext";
 import RequireAuth from "./components/RequireAuth";
+import PublicProfile from "./pages/PublicProfile";
 
 const GlobalStyles = createGlobalStyle`
   *, *::before, *::after { box-sizing: border-box; }
@@ -52,6 +53,9 @@ function App() {
           <Route path="/step2" element={<LinkSingle />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+
+          {/* 👇 pública por username */}
+          <Route path="/:username" element={<PublicProfile />} />
         </Routes>
       </AuthProvider>
     </>
