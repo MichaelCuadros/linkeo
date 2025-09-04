@@ -1,10 +1,13 @@
+// src/pages/Step2.jsx
 import React, { useMemo, useState } from "react";
 import styled, { keyframes } from "styled-components";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
-/* ==== Animación / Layout ==== */
-const fadeUp = keyframes`
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+/* ====== UI ====== */
+const floatIn = keyframes`
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 `;
 
 const Page = styled.div`
@@ -13,51 +16,40 @@ const Page = styled.div`
   place-items: center;
   padding: 24px;
   background:
-    radial-gradient(1200px 600px at -10% 0%, #60a5fa 0%, transparent 50%),
-    radial-gradient(900px 500px at 110% 10%, #34d399 0%, transparent 45%),
+    radial-gradient(1200px 600px at 10% -10%, #6366f1 0%, transparent 50%),
+    radial-gradient(1000px 520px at 110% 10%, #22c55e 0%, transparent 40%),
     #0b1220;
+  color: #0f172a;
 `;
 
 const Card = styled.div`
   width: 100%;
-  max-width: 560px;
-  background: rgba(255,255,255,0.95);
-  backdrop-filter: blur(6px);
+  max-width: 420px;
+  background: rgba(255,255,255,0.9);
+  backdrop-filter: blur(8px);
   border: 1px solid #e5e7eb;
-  border-radius: 18px;
-  padding: 20px;
-  box-shadow: 0 20px 50px rgba(0,0,0,.22);
-  animation: ${fadeUp} .35s ease-out both;
+  border-radius: 20px;
+  box-shadow: 0 30px 70px rgba(0,0,0,0.25);
+  padding: 28px;
+  animation: ${floatIn} .35s ease-out both;
 `;
 
-const Title = styled.h1`
-  margin: 0 0 6px;
-  color: #0f172a;
-  font-size: 20px;
-  letter-spacing: .2px;
-`;
-
-const Subtitle = styled.p`
-  margin: 0 0 16px;
-  color: #475569;
-  font-size: 14px;
-`;
-
-const Form = styled.form`
+const Brand = styled.div`
   display: grid;
-  gap: 14px;
+  gap: 6px;
+  margin-bottom: 18px;
+  text-align: center;
+  h1 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: .2px; color: #0f172a; }
+  p { margin: 0; color: #475569; font-size: 14px; }
 `;
 
-const Field = styled.label`
-  display: grid;
-  gap: 8px;
-  font-size: 13px;
-  color: #0f172a;
-`;
+const Form = styled.form` display: grid; gap: 14px; `;
+const Field = styled.label` display: grid; gap: 8px; font-size: 13px; color: #0f172a; `;
+const InputWrap = styled.div` position: relative; display: grid; `;
 
 const Input = styled.input`
   height: 46px;
-  padding: 10px 12px;
+  padding: 10px 40px;
   border-radius: 12px;
   border: 1px solid #e5e7eb;
   background: #fff;
@@ -65,179 +57,195 @@ const Input = styled.input`
   font-size: 14px;
   outline: none;
   transition: box-shadow .15s ease, border-color .15s ease;
-
   &::placeholder { color: #94a3b8; }
   &:hover { border-color: #d1d5db; }
-  &:focus {
-    border-color: #6366f1;
-    box-shadow: 0 0 0 4px rgba(99,102,241,.15);
-  }
-  &[aria-invalid="true"] {
-    border-color: #ef4444;
-    box-shadow: 0 0 0 4px rgba(239,68,68,.12);
-  }
+  &:focus { border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99,102,241,.15); }
+  &[aria-invalid="true"] { border-color: #ef4444; box-shadow: 0 0 0 4px rgba(239,68,68,.12); }
 `;
 
-const ErrorText = styled.div`
-  color: #b91c1c;
-  font-size: 12px;
-  line-height: 1.2;
-  margin-top: -4px;
+const LeftIcon = styled.span`
+  position: absolute; inset: 0 auto 0 12px;
+  display: grid; place-items: center; pointer-events: none; color: #64748b;
 `;
 
-const Row = styled.div`
-  display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; align-items: center;
-`;
-
-const Ghost = styled.button`
-  height: 42px; padding: 0 14px; border-radius: 12px; border: 1px solid #e5e7eb;
-  background: #fff; color: #0f172a; cursor: pointer;
-  &:hover { background: #f8fafc; }
-`;
-
-const Primary = styled.button`
-  height: 42px; padding: 0 16px; border-radius: 12px; border: 0;
-  background: #111827; color: #fff; font-weight: 700; cursor: pointer;
-  box-shadow: 0 12px 24px rgba(17,24,39,.22);
-  &:hover { background: #0b1220; }
-  &:disabled { opacity: .6; cursor: not-allowed; box-shadow:none; }
-`;
-
-/* Vista previa */
-const Preview = styled.a`
-  display: grid; grid-template-columns: 44px 1fr; gap: 10px;
-  align-items: center; text-decoration: none;
-  border: 1px dashed #e5e7eb; border-radius: 14px; padding: 10px;
-  background: #fafafa;
-  color: #0f172a;
+const RightBtn = styled.button`
+  position: absolute; right: 8px; top: 50%; translate: 0 -50%;
+  border: 0; background: transparent; padding: 6px 10px; border-radius: 10px;
+  color: #475569; cursor: pointer;
   &:hover { background: #f1f5f9; }
 `;
 
-const Favicon = styled.img`
-  width: 44px; height: 44px; border-radius: 10px; background: #e2e8f0; object-fit: cover;
+const ErrorText = styled.div` color: #b91c1c; font-size: 12px; line-height: 1.2; margin-top: 4px;`;
+
+const Row = styled.div` display: flex; align-items: center; justify-content: space-between; margin-top: 4px; `;
+const Check = styled.label` display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #334155;
+  input { width: 16px; height: 16px; }`;
+const LinkA = styled.a` font-size: 13px; color: #6366f1; text-decoration: none; &:hover { text-decoration: underline; }`;
+
+const Submit = styled.button`
+  height: 46px; border: 0; border-radius: 12px; background: #111827; color: white;
+  font-weight: 700; font-size: 14px; letter-spacing: .3px; cursor: pointer;
+  transition: transform .04s ease, box-shadow .15s ease, background .15s ease;
+  box-shadow: 0 12px 24px rgba(17,24,39,.25);
+  &:hover { background: #0b1220; }
+  &:active { transform: translateY(1px); }
+  &:disabled { opacity: .6; cursor: not-allowed; box-shadow: none; }
 `;
 
-const LabelSm = styled.div`
-  font-size: 12px; color: #64748b;
+const Secondary = styled.button`
+  height: 46px; border: 1px solid #e5e7eb; border-radius: 12px; background: #ffffff; color: #0f172a;
+  font-weight: 700; font-size: 14px; letter-spacing: .2px; cursor: pointer;
+  transition: transform .04s ease, box-shadow .15s ease, background .15s ease;
+  margin-top: 8px;
+  &:hover { background: #f8fafc; }
+  &:active { transform: translateY(1px); }
 `;
 
-const Strong = styled.div`
-  font-weight: 700; font-size: 14px; color: #0f172a;
-`;
+const Footer = styled.p` margin: 14px 0 0; text-align: center; color: #64748b; font-size: 12px; `;
 
-/* Icono */
-const LinkIcon = (p) => (
+/* Icons */
+const UserIcon = (p) => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" {...p}>
-    <path d="M10.5 13.5a4.5 4.5 0 0 0 6.4.1l2.5-2.5a4.5 4.5 0 0 0-6.3-6.3l-1.5 1.5"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    <path d="M13.5 10.5a4.5 4.5 0 0 0-6.4-.1L4.6 12.9a4.5 4.5 0 0 0 6.3 6.3l1.5-1.5"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Z" stroke="currentColor" strokeWidth="2"/>
+    <path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6" stroke="currentColor" strokeWidth="2"/>
+  </svg>
+);
+const LockIcon = (p) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" {...p}>
+    <rect x="4" y="10" width="16" height="10" rx="2" stroke="currentColor" strokeWidth="2"/>
+    <path d="M8 10V8a4 4 0 1 1 8 0v2" stroke="currentColor" strokeWidth="2"/>
+  </svg>
+);
+const EyeIcon = (p) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" {...p}>
+    <path d="M1.5 12S5 5 12 5s10.5 7 10.5 7-3.5 7-10.5 7S1.5 12 1.5 12Z" stroke="currentColor" strokeWidth="2"/>
+    <circle cx="12" cy="12" r="3.5" stroke="currentColor" strokeWidth="2"/>
+  </svg>
+);
+const EyeOffIcon = (p) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" {...p}>
+    <path d="M3 3l18 18" stroke="currentColor" strokeWidth="2"/>
+    <path d="M2 12s3.5-7 10-7c2.1 0 4-.7 5.6 1.7M22 12s-3.5 7-10 7c-2.1 0-4-.7-5.6-1.7" stroke="currentColor" strokeWidth="2"/>
   </svg>
 );
 
-/* ==== helpers URL ==== */
-function normalizeUrl(input) {
-  const s = input.trim();
-  if (!s) return "";
-  if (/^https?:\/\//i.test(s)) return s;
-  return `https://${s}`;
-}
-function validateUrl(u) {
-  try {
-    const { protocol } = new URL(u);
-    return protocol === "http:" || protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-function hostnameFrom(u) {
-  try { return new URL(u).hostname; } catch { return ""; }
-}
+export default function Step2() {
+  const nav = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from?.pathname || "/dashboard";
+  const { login } = useAuth();
 
-/* ==== Componente ==== */
-export default function LinkSingle({ initialUrl = "", initialTitle = "", onSave, onCancel }) {
-  const [url, setUrl] = useState(initialUrl);
-  const [title, setTitle] = useState(initialTitle);
-  const [touched, setTouched] = useState({ url: false });
+  const [values, setValues] = useState({ user: "", pass: "", remember: true });
+  const [show, setShow] = useState(false);
+  const [touched, setTouched] = useState({ user: false, pass: false });
+  const [loading, setLoading] = useState(false);
+  const [serverErr, setServerErr] = useState("");
 
-  const normalized = useMemo(() => normalizeUrl(url), [url]);
-  const isValid = useMemo(() => validateUrl(normalized), [normalized]);
-  const err = !touched.url ? "" : (isValid ? "" : "Ingresa una URL válida (http/https)");
-  const host = useMemo(() => hostnameFrom(normalized), [normalized]);
-  const displayTitle = title.trim() || host || "Vista previa";
+  const errors = useMemo(() => {
+    const e = {};
+    if (!values.user.trim()) e.user = "Ingresa tu usuario o correo";
+    if (!values.pass) e.pass = "Ingresa tu contraseña";
+    else if (values.pass.length < 6) e.pass = "Mínimo 6 caracteres";
+    return e;
+  }, [values]);
 
-  const favicon = host ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=64` : "";
+  const isValid = Object.keys(errors).length === 0;
 
-  const handleBlur = () => {
-    setTouched((t) => ({ ...t, url: true }));
-    if (url && !/^https?:\/\//i.test(url)) {
-      setUrl((prev) => normalizeUrl(prev)); // autoprepend https://
-    }
+  const update = (key) => (ev) => {
+    const value = key === "remember" ? ev.target.checked : ev.target.value;
+    setValues((v) => ({ ...v, [key]: value }));
   };
 
-  const submit = (e) => {
-    e.preventDefault();
-    setTouched({ url: true });
+  const onSubmit = async (ev) => {
+    ev.preventDefault();
+    setTouched({ user: true, pass: true });
+    setServerErr("");
     if (!isValid) return;
-    const payload = { url: normalized, title: title.trim() };
-    if (onSave) onSave(payload);
-    else alert(`Guardado:\n${JSON.stringify(payload, null, 2)}`);
-  };
 
-  const testLink = () => {
-    if (isValid) window.open(normalized, "_blank", "noopener,noreferrer");
+    try {
+      setLoading(true);
+      await login({ user: values.user, pass: values.pass, remember: values.remember });
+      nav(from, { replace: true }); // vuelve a la ruta solicitada o /dashboard
+    } catch (e) {
+      setServerErr(e.message || "Error de autenticación");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <Page>
-      <Card>
-        <Title>Enlazar una sola página web</Title>
-        <Subtitle><LinkIcon /> Ingresa el URL que abrirá tu tarjeta.</Subtitle>
+      <Card role="dialog" aria-labelledby="login-title">
+        <Brand>
+          <h1 id="login-title">Iniciar sesión</h1>
+          <p>Accede con tu usuario y contraseña</p>
+        </Brand>
 
-        <Form onSubmit={submit} noValidate>
+        <Form onSubmit={onSubmit} noValidate>
           <Field>
-            URL del sitio
-            <Input
-              type="url"
-              placeholder="https://tusitio.com"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              onBlur={handleBlur}
-              aria-invalid={!!err}
-              inputMode="url"
-              autoComplete="url"
-            />
-            {err && <ErrorText>{err}</ErrorText>}
+            Usuario o correo
+            <InputWrap>
+              <LeftIcon><UserIcon /></LeftIcon>
+              <Input
+                type="text"
+                name="username"
+                placeholder="tu@correo.com"
+                value={values.user}
+                onChange={update("user")}
+                onBlur={() => setTouched((t) => ({ ...t, user: true }))}
+                aria-invalid={touched.user && !!errors.user}
+                autoComplete="username"
+                inputMode="email"
+              />
+            </InputWrap>
+            {touched.user && errors.user && <ErrorText>{errors.user}</ErrorText>}
           </Field>
 
           <Field>
-            Título (opcional)
-            <Input
-              type="text"
-              placeholder="Ej. Mi sitio principal"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              autoComplete="off"
-            />
-          </Field>
-
-          {/* Vista previa */}
-          <Field style={{ marginTop: 6 }}>
-            Vista previa
-            <Preview href={isValid ? normalized : "#"} target="_blank" rel="noopener noreferrer" onClick={(e)=>!isValid && e.preventDefault()}>
-              <Favicon src={favicon} alt="" onError={(e)=>{ e.currentTarget.style.visibility="hidden"; }} />
-              <div>
-                <Strong>{displayTitle}</Strong>
-                <LabelSm>{isValid ? normalized : "URL inválida"}</LabelSm>
-              </div>
-            </Preview>
+            Contraseña
+            <InputWrap>
+              <LeftIcon><LockIcon /></LeftIcon>
+              <Input
+                type={show ? "text" : "password"}
+                name="password"
+                placeholder="••••••••"
+                value={values.pass}
+                onChange={update("pass")}
+                onBlur={() => setTouched((t) => ({ ...t, pass: true }))}
+                aria-invalid={touched.pass && !!errors.pass}
+                autoComplete="current-password"
+              />
+              <RightBtn
+                type="button"
+                aria-label={show ? "Ocultar contraseña" : "Mostrar contraseña"}
+                onClick={() => setShow((s) => !s)}
+                title={show ? "Ocultar" : "Mostrar"}
+              >
+                {show ? <EyeOffIcon /> : <EyeIcon />}
+              </RightBtn>
+            </InputWrap>
+            {touched.pass && errors.pass && <ErrorText>{errors.pass}</ErrorText>}
           </Field>
 
           <Row>
-            <Ghost type="button" onClick={onCancel || (()=>history.back())}>Cancelar</Ghost>
-            <Ghost type="button" onClick={testLink} disabled={!isValid}>Probar enlace</Ghost>
-            <Primary type="submit" disabled={!isValid}>Guardar</Primary>
+            <Check>
+              <input type="checkbox" checked={values.remember} onChange={update("remember")} />
+              Recordarme
+            </Check>
+            <LinkA href="#" onClick={(e)=>e.preventDefault()}>¿Olvidaste tu contraseña?</LinkA>
           </Row>
+
+          {serverErr && <ErrorText style={{ marginTop: 6 }}>{serverErr}</ErrorText>}
+
+          <Submit type="submit" disabled={!isValid || loading}>
+            {loading ? "Ingresando..." : "Ingresar"}
+          </Submit>
+
+          <Secondary type="button" onClick={() => nav("/register")}>
+            Crear cuenta
+          </Secondary>
+
+          <Footer>LINKEO OFICIAL</Footer>
         </Form>
       </Card>
     </Page>

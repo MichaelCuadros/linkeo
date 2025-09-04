@@ -1,45 +1,9 @@
+// src/pages/Config.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
-
-const API_BASE = "http://localhost:4000";
-const API = {
-  getByUsername: async (username) => {
-    const r = await fetch(
-      `${API_BASE}/api/profiles/by-username/${encodeURIComponent(username)}`
-    );
-    if (!r.ok) throw new Error(`GET failed: ${r.status}`);
-    return r.json();
-  },
-
-  upsertByUsername: async (username, payload) => {
-    const r = await fetch(
-      `${API_BASE}/api/profiles/by-username/${encodeURIComponent(username)}`,
-      {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload), // payload ya puede incluir theme, links, etc.
-      }
-    );
-    if (!r.ok) throw new Error(`PUT failed: ${r.status}`);
-    return r.json();
-  },
-
-  // CREA (falla con 409 si el username ya existe)
-  createUsername: async (username, payload) => {
-    const body = { ...payload, username: payload?.username ?? username };
-    const r = await fetch(`${API_BASE}/api/profiles`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!r.ok) {
-      // opcional: leer mensaje del backend para mostrar "Username already exists"
-      const msg = await r.text().catch(() => "");
-      throw new Error(`POST failed: ${r.status}${msg ? ` - ${msg}` : ""}`);
-    }
-    return r.json();
-  },
-};
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { API } from "../lib/api";
 
 /* ================= ICONOS ================= */
 const Icons = {
@@ -181,8 +145,6 @@ const PLACEHOLDERS = {
   custom: "https://enlace-o-protocolo",
 };
 
-const STORAGE_KEY = "social_tiles_theme_v8";
-
 /* ================= Helpers ================= */
 const normalizeUrl = (url) => {
   if (!url) return "";
@@ -237,6 +199,7 @@ const Actions = styled.div`
   flex-wrap: wrap;
 `;
 const Btn = styled.button`
+
   padding: 8px 12px;
   border-radius: 12px;
   border: 1px solid #e5e7eb;
@@ -252,9 +215,7 @@ const Grid = styled.div`
   display: grid;
   align-items: start;
   gap: 18px;
-  grid-template-areas:
-    "editor"
-    "phone";
+  grid-template-areas: "editor" "phone";
   grid-template-columns: 1fr;
   @media (min-width: 980px) {
     grid-template-areas: "editor phone";
@@ -266,10 +227,11 @@ const EditorCol = styled.div`
 `;
 const PhoneCol = styled.div`
   grid-area: phone;
+  display: flex;
+  flex-direction:column;
+  justify-content: center;
   position: static;
   top: auto;
-  display: flex;
-  justify-content: center;
   @media (min-width: 980px) {
     position: sticky;
     top: 16px;
@@ -292,7 +254,6 @@ const Preview = styled.div`
   padding: ${(p) => p.$pad}px;
   padding-top: calc(${(p) => p.$pad}px + ${(p) => p.$offset}px);
   color: ${(p) => p.$color || "#111827"};
-
   ${(p) =>
     p.$bgImage
       ? `
@@ -301,16 +262,13 @@ const Preview = styled.div`
         });
     background-size: ${p.$bgZoom ? p.$bgZoom + "%" : "cover"};
     background-position: ${p.$bgPosX || 50}% ${p.$bgPosY || 50}%;
-    background-repeat: no-repeat;
-  `
+    background-repeat: no-repeat;`
       : `background:${p.$bgCss || "#000"};`}
-
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
   display: grid;
   gap: ${(p) => p.$gap}px;
   font-family: ${(p) => p.$fontFamily};
   font-size: ${(p) => p.$fontSize}px;
-
   max-height: calc(85vh - 24px);
   overflow: auto;
 `;
@@ -490,7 +448,7 @@ const Swatch = styled.span`
   border: 1px solid #e5e7eb;
 `;
 
-/* ====== Tarjetas para editar URLs ====== */
+/* ====== Tarjetas URLs ====== */
 const CardsMasonry = styled.div`
   column-count: 1;
   column-gap: 12px;
@@ -657,14 +615,11 @@ const STYLE_PRESETS = [
 
 /* ================= Estado por defecto ================= */
 const DEFAULT_PROFILE = {
-  // Identidad
-  title: "", // ← vacío: usa placeholder
-  description: "", // ← vacío: usa placeholder
+  title: "",
+  description: "",
   align: "center",
   textColor: "#FFFFFF",
   avatarAlign: "center",
-
-  // Fondo
   bgMode: "image",
   bgColor: "#0f172a",
   bgColor2: "#1e3a8a",
@@ -674,8 +629,6 @@ const DEFAULT_PROFILE = {
   bgPosX: 50,
   bgPosY: 50,
   bgZoom: 100,
-
-  // Botones
   btnVariant: "filled",
   btnUseBrand: false,
   btnBg: "#0f172a",
@@ -689,21 +642,15 @@ const DEFAULT_PROFILE = {
   btnWidth: 85,
   btnContentAlign: "left",
   btnIconSide: "left",
-
-  // Vista móvil / tipografía / espaciado
   phoneWidth: 390,
   containerPadding: 18,
   heroOffset: 0,
   linksGap: 12,
   fontFamily: "System",
   fontSize: 16,
-
-  // Assets
   avatarDataUrl: "",
   pdfDataUrl: "",
   pdfName: "",
-
-  // vCard
   contactFullName: "",
   contactOrg: "",
   contactTitle: "",
@@ -729,17 +676,42 @@ const FONTS = [
 ];
 
 /* =================== Componente =================== */
-export const Menu = () => {
+export default function Config() {
+  const nav = useNavigate();
+  const {
+    user,
+    profile: ctxProfile,
+    setProfile: setCtxProfile,
+    isAuthed,
+  } = useAuth();
+
+  // Key de storage por usuario
+  const STORAGE_KEY = user?.username
+    ? `social_tiles_theme_v9_${user.username}`
+    : "social_tiles_theme_v9_anon";
+
   const [items, setItems] = useState(() =>
     PLATFORMS.map((p) => ({ key: p.key, url: "", visible: true, open: false }))
   );
   const [profile, setProfile] = useState(DEFAULT_PROFILE);
   const [errors, setErrors] = useState({});
-  const [openStep, setOpenStep] = useState(1); // 1..6
-  const [username, setUsername] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [openStep, setOpenStep] = useState(1);
+  const [loadingNet, setLoadingNet] = useState(false);
 
-  // cargar / guardar local
+  useEffect(() => {
+    loadFromBackend();
+  }, [isAuthed]);
+
+  // Si no está autenticado, manda a login
+  useEffect(() => {
+    if (!isAuthed)
+      nav("/login", {
+        replace: true,
+        state: { from: { pathname: "/config" } },
+      });
+  }, [isAuthed, nav]);
+
+  // Restaura borrador local del usuario o precarga desde ctx
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -762,20 +734,42 @@ export const Menu = () => {
         setItems(merged);
         if (!Array.isArray(saved) && saved?.profile)
           setProfile((prev) => ({ ...prev, ...saved.profile }));
-      } catch (e) {
-        console.log(e);
-      }
+        return;
+      } catch {}
     }
-  }, []);
+    if (ctxProfile) {
+      const mapped = fromServerDoc({
+        theme: ctxProfile.theme,
+        links: ctxProfile.links,
+        displayName: ctxProfile.displayName,
+        bio: ctxProfile.bio,
+      });
+      setProfile(mapped.profile);
+      setItems(mapped.items);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [STORAGE_KEY]);
+
+  // Si cambia el ctxProfile y no hay borrador local, refresca la UI
+  useEffect(() => {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw && ctxProfile) {
+      const mapped = fromServerDoc(ctxProfile);
+      setProfile(mapped.profile);
+      setItems(mapped.items);
+    }
+  }, [ctxProfile, STORAGE_KEY]);
+
+  // Guarda borrador local al vuelo
   useEffect(() => {
     const data = {
       links: items.map(({ key, url, visible }) => ({ key, url, visible })),
       profile,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  }, [items, profile]);
+  }, [items, profile, STORAGE_KEY]);
 
-  // cargar Google Font
+  // Google Font dinámica
   useEffect(() => {
     const def = FONTS.find((f) => f.label === profile.fontFamily);
     const id = "designer-font-link";
@@ -795,15 +789,14 @@ export const Menu = () => {
     }
   }, [profile.fontFamily]);
 
-  // helpers
+  // Helpers
   const byKey = (k) => items.find((i) => i.key === k);
   const toggleOpen = (k) =>
-    setItems((prev) => {
-      const isOpen = prev.find((i) => i.key === k)?.open;
-      return prev.map((i) =>
-        i.key === k ? { ...i, open: !isOpen } : { ...i, open: false }
-      );
-    });
+    setItems((prev) =>
+      prev.map((i) =>
+        i.key === k ? { ...i, open: !i.open } : { ...i, open: false }
+      )
+    );
   const setUrl = (k, url) =>
     setItems((prev) => prev.map((i) => (i.key === k ? { ...i, url } : i)));
   const setVisible = (k, v) =>
@@ -829,7 +822,7 @@ export const Menu = () => {
     }));
   };
 
-  // assets
+  // Assets
   const onAvatarFile = (file) => {
     const r = new FileReader();
     r.onload = () => setProfile((p) => ({ ...p, avatarDataUrl: r.result }));
@@ -848,7 +841,7 @@ export const Menu = () => {
     r.readAsDataURL(file);
   };
 
-  // fondo
+  // Fondo
   const overlayCss =
     profile.bgMode === "image"
       ? `linear-gradient(${profile.bgAngle}deg, rgba(0,0,0,${profile.overlayOpacity}) 0%, rgba(0,0,0,${profile.overlayOpacity}) 100%)`
@@ -860,7 +853,7 @@ export const Menu = () => {
       ? profile.bgColor
       : "#000";
 
-  // colores botón
+  // Colores botón
   const btnColorsFor = (key) => {
     const brand = PLATFORMS.find((p) => p.key === key)?.brand || profile.btnBg;
     const bg = profile.btnUseBrand ? brand : profile.btnBg;
@@ -880,9 +873,7 @@ export const Menu = () => {
         return `${name}: ${l.href}`;
       })
       .join("\\n");
-
     const note = [p.contactNote, socialNote].filter(Boolean).join("\\n");
-
     const lines = [
       "BEGIN:VCARD",
       "VERSION:3.0",
@@ -890,7 +881,7 @@ export const Menu = () => {
       p.contactOrg ? `ORG:${escapeV(p.contactOrg)}` : null,
       p.contactTitle ? `TITLE:${escapeV(p.contactTitle)}` : null,
       p.contactPhone
-        ? `TEL;TYPE=CELL:${p.contactPhone.replace(/\\s+/g, "")}`
+        ? `TEL;TYPE=CELL:${p.contactPhone.replace(/\s+/g, "")}`
         : null,
       p.contactEmail ? `EMAIL;TYPE=INTERNET:${p.contactEmail}` : null,
       p.contactWebsite ? `URL:${p.contactWebsite}` : null,
@@ -907,9 +898,8 @@ export const Menu = () => {
       note ? `NOTE:${note}` : null,
       "END:VCARD",
     ].filter(Boolean);
-    return lines.join("\\r\\n");
+    return lines.join("\r\n");
   };
-
   const downloadVCard = () => {
     const vcf = buildVCard();
     const blob = new Blob([vcf], { type: "text/vcard;charset=utf-8" });
@@ -919,12 +909,13 @@ export const Menu = () => {
       profile.contactFullName ||
       profile.title ||
       "contacto"
-    ).replace(/\\s+/g, "_");
+    ).replace(/\s+/g, "_");
     a.download = `${nice}.vcf`;
     a.click();
     URL.revokeObjectURL(a.href);
   };
 
+  // Export/Import JSON (borradores)
   const exportJson = () => {
     const data = {
       links: items.map(({ key, url, visible }) => ({ key, url, visible })),
@@ -935,7 +926,7 @@ export const Menu = () => {
     });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "perfil_y_links.json";
+    a.download = `perfil_y_links_${user?.username || "draft"}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
   };
@@ -956,9 +947,7 @@ export const Menu = () => {
         });
         setItems(mapped);
         if (obj.profile) setProfile((prev) => ({ ...prev, ...obj.profile }));
-      } catch (e) {
-        console.log(e);
-      }
+      } catch {}
     };
     r.readAsText(file);
   };
@@ -972,9 +961,8 @@ export const Menu = () => {
   const descText =
     profile.description?.trim() || "Escribe una breve descripción…";
 
-  /* ============ Mappers backend ============ */
-  const toServerPayload = (u) => {
-    // links con order según posición actual en items
+  /* ============ Mappers backend (User ⇄ Profile) ============ */
+  const toServerPayload = () => {
     const links = items.map((i, order) => ({
       key: i.key,
       url: i.url,
@@ -987,17 +975,15 @@ export const Menu = () => {
       align: profile.align,
       textColor: profile.textColor,
       avatarAlign: profile.avatarAlign,
-
       bgMode: profile.bgMode,
       bgColor: profile.bgColor,
       bgColor2: profile.bgColor2,
       bgAngle: profile.bgAngle,
-      bgImageUrl: profile.bgImageDataUrl, // enviamos dataURL o URL
+      bgImageUrl: profile.bgImageDataUrl,
       overlayOpacity: profile.overlayOpacity,
       bgPosX: profile.bgPosX,
       bgPosY: profile.bgPosY,
       bgZoom: profile.bgZoom,
-
       btnVariant: profile.btnVariant,
       btnUseBrand: profile.btnUseBrand,
       btnBg: profile.btnBg,
@@ -1011,19 +997,16 @@ export const Menu = () => {
       btnWidth: profile.btnWidth,
       btnContentAlign: profile.btnContentAlign,
       btnIconSide: profile.btnIconSide,
-
       phoneWidth: profile.phoneWidth,
       containerPadding: profile.containerPadding,
       heroOffset: profile.heroOffset,
       linksGap: profile.linksGap,
       fontFamily: profile.fontFamily,
       fontSize: profile.fontSize,
-
       avatarUrl: profile.avatarDataUrl,
-      coverUrl: "", // no lo usamos en este editor
+      coverUrl: "",
       pdfUrl: profile.pdfDataUrl,
       pdfName: profile.pdfName,
-
       contactFullName: profile.contactFullName,
       contactOrg: profile.contactOrg,
       contactTitle: profile.contactTitle,
@@ -1038,7 +1021,6 @@ export const Menu = () => {
       contactNote: profile.contactNote,
     };
     return {
-      username: u,
       displayName: profile.title,
       bio: profile.description,
       theme,
@@ -1049,14 +1031,11 @@ export const Menu = () => {
   const fromServerDoc = (doc) => {
     const t = doc?.theme || {};
     const serverProfile = {
-      // Identidad
       title: t.title || doc?.displayName || "",
       description: t.description || doc?.bio || "",
       align: t.align ?? "center",
       textColor: t.textColor ?? "#FFFFFF",
       avatarAlign: t.avatarAlign ?? "center",
-
-      // Fondo
       bgMode: t.bgMode ?? "image",
       bgColor: t.bgColor ?? "#0f172a",
       bgColor2: t.bgColor2 ?? "#1e3a8a",
@@ -1066,8 +1045,6 @@ export const Menu = () => {
       bgPosX: t.bgPosX ?? 50,
       bgPosY: t.bgPosY ?? 50,
       bgZoom: t.bgZoom ?? 100,
-
-      // Botones
       btnVariant: t.btnVariant ?? "filled",
       btnUseBrand: t.btnUseBrand ?? false,
       btnBg: t.btnBg ?? "#0f172a",
@@ -1081,21 +1058,15 @@ export const Menu = () => {
       btnWidth: t.btnWidth ?? 85,
       btnContentAlign: t.btnContentAlign ?? "left",
       btnIconSide: t.btnIconSide ?? "left",
-
-      // Vista móvil
       phoneWidth: t.phoneWidth ?? 390,
       containerPadding: t.containerPadding ?? 18,
       heroOffset: t.heroOffset ?? 0,
       linksGap: t.linksGap ?? 12,
       fontFamily: t.fontFamily ?? "System",
       fontSize: t.fontSize ?? 16,
-
-      // Assets
       avatarDataUrl: t.avatarUrl ?? "",
       pdfDataUrl: t.pdfUrl ?? "",
       pdfName: t.pdfName ?? "",
-
-      // Contacto
       contactFullName: t.contactFullName ?? "",
       contactOrg: t.contactOrg ?? "",
       contactTitle: t.contactTitle ?? "",
@@ -1109,9 +1080,7 @@ export const Menu = () => {
       contactCountry: t.contactCountry ?? "",
       contactNote: t.contactNote ?? "",
     };
-
     const serverLinks = Array.isArray(doc?.links) ? doc.links : [];
-    // Garantiza todas las plataformas
     const mergedLinks = PLATFORMS.map((p) => {
       const found = serverLinks.find((x) => x.key === p.key);
       return {
@@ -1121,46 +1090,51 @@ export const Menu = () => {
         open: false,
       };
     });
-
     return { profile: serverProfile, items: mergedLinks };
   };
 
-  /* ============ Acciones de red ============ */
-  const saveToBackend = async () => {
-    if (!username.trim()) return alert("Define un username");
+  /* ============ Acciones de red (con /me) ============ */
+  const loadFromBackend = async () => {
     try {
-      setLoading(true);
-      const payload = toServerPayload(username.trim());
-      const saved = await API.upsertByUsername(username.trim(), payload);
-      setLoading(false);
-      alert("✅ Guardado en backend");
-      // opcional: refrescar estado con lo devuelto
+      setLoadingNet(true);
+      const data = await API.getMeProfile(); // GET /api/profiles/me/profile
+      const mapped = fromServerDoc(data);
+      setProfile(mapped.profile);
+      setItems(mapped.items);
+      // sincroniza contexto
+      setCtxProfile(data);
+      /*    alert("✅ Perfil cargado"); */
+    } catch (e) {
+      alert("❌ Error cargando: " + (e.message || "Desconocido"));
+    } finally {
+      setLoadingNet(false);
+    }
+  };
+
+  const saveToBackend = async () => {
+    try {
+      setLoadingNet(true);
+      const payload = toServerPayload();
+      const saved = await API.upsertMeProfile(payload); // PUT /api/profiles/me/profile
       const mapped = fromServerDoc(saved);
       setProfile(mapped.profile);
       setItems(mapped.items);
+      // sincroniza contexto
+      setCtxProfile(saved);
+      alert("✅ Guardado");
     } catch (e) {
-      setLoading(false);
-      alert("❌ Error guardando: " + e.message);
+      alert("❌ Error guardando: " + (e.message || "Desconocido"));
+    } finally {
+      setLoadingNet(false);
     }
   };
 
-  const loadFromBackend = async () => {
-    if (!username.trim()) return alert("Define un username");
-    try {
-      setLoading(true);
-      const doc = await API.getByUsername(username.trim());
-      const mapped = fromServerDoc(doc);
-      setProfile(mapped.profile);
-      setItems(mapped.items);
-      setLoading(false);
-      alert("✅ Cargado desde backend");
-    } catch (e) {
-      setLoading(false);
-      alert("❌ Error cargando: " + e.message);
-    }
-  };
+  // Título / descripción header
+  const headerTitle = user
+    ? `Configura tu perfil (${user.username || user.email})`
+    : "Configura tu perfil";
 
-  /* ============ Presets ============ */
+  // Presets
   const applyPreset = (key) => {
     const p = STYLE_PRESETS.find((x) => x.key === key);
     if (!p) return;
@@ -1172,47 +1146,20 @@ export const Menu = () => {
     applyPreset(r.key);
   };
 
-  // === Acción para crear usuario nuevo ===
-  const createInBackend = async () => {
-    if (!username.trim()) return alert("Define un username");
-    try {
-      setLoading(true);
-      const payload = toServerPayload(username.trim());
-      const created = await API.createUsername(username.trim(), payload);
-      setLoading(false);
-      alert("✅ Usuario creado en backend");
-      // Actualizamos estado local con lo que devuelve el backend
-      const mapped = fromServerDoc(created);
-      setProfile(mapped.profile);
-      setItems(mapped.items);
-    } catch (e) {
-      setLoading(false);
-      alert("❌ Error creando: " + e.message);
-    }
-  };
+  // Si aún no autenticó, evita parpadeo
+  if (!isAuthed) return null;
 
   return (
     <Wrap>
       <Header>
-        <h1>Configura tus enlaces</h1>
+        <h1>{headerTitle}</h1>
         <Actions>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <TextInput
-              style={{ width: 220 }}
-              placeholder="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
-            <Btn type="button" onClick={loadFromBackend} disabled={loading}>
-              {loading ? "Cargando..." : "Cargar"}
-            </Btn>
-            <Btn type="button" onClick={saveToBackend} disabled={loading}>
-              {loading ? "Guardando..." : "Guardar"}
-            </Btn>
-            <Btn type="button" onClick={createInBackend} disabled={loading}>
-              {loading ? "Creando..." : "Crear"}
-            </Btn>
-          </div>
+          {/*           <Btn type="button" onClick={loadFromBackend} disabled={loadingNet}>
+            {loadingNet ? "Cargando..." : "Cargar de backend"}
+          </Btn> */}
+{/*           <Btn type="button" onClick={saveToBackend} disabled={loadingNet}>
+            {loadingNet ? "Guardando..." : "Guardar Cambios"}
+          </Btn>
           <label style={{ display: "inline-block" }}>
             <input
               type="file"
@@ -1226,7 +1173,7 @@ export const Menu = () => {
           </label>
           <Btn type="button" onClick={exportJson}>
             Exportar JSON
-          </Btn>
+          </Btn> */}
         </Actions>
       </Header>
 
@@ -1311,7 +1258,6 @@ export const Menu = () => {
                     : profile.btnVariant === "glass"
                     ? "rgba(255,255,255,.2)"
                     : "transparent";
-
                 return (
                   <LinkRow key={`prev-${l.key}`} $align={profile.btnAlign}>
                     <div
@@ -1360,12 +1306,14 @@ export const Menu = () => {
                 </a>
               )}
 
-              {/* Guardar contacto vCard */}
               <Btn type="button" onClick={downloadVCard}>
                 📇 Guardar contacto (.vcf)
               </Btn>
             </Preview>
           </Phone>
+             <Btn type="button" onClick={saveToBackend} disabled={loadingNet}>
+            {loadingNet ? "Guardando..." : "Guardar Cambios"}
+          </Btn>
         </PhoneCol>
 
         {/* EDITOR */}
@@ -2079,6 +2027,7 @@ export const Menu = () => {
                     }))
                   }
                 />
+
                 <div className="row" style={{ width: "100%" }}>
                   <TextInput
                     placeholder="Empresa / Organización"
@@ -2193,4 +2142,4 @@ export const Menu = () => {
       </Grid>
     </Wrap>
   );
-};
+}

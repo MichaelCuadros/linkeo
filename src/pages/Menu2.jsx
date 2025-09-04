@@ -93,7 +93,7 @@ const SparkIcon = (p) => (
 );
 
 /* Componente */
-export default function LinkMenu({ onSimple, onCustom }) {
+export default function Step1({ onSimple, onCustom }) {
   const handleSimple = () => {
     if (onSimple) return onSimple();
     alert("Elegiste: Enlazar una sola página web");
